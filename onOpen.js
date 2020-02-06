@@ -5,8 +5,11 @@
 function onOpen() {
   const ui = SpreadsheetApp.getUi();
 
-  ui.createMenu('Setup')
-    .addItem('Update DeepL API key', 'updateApiKeyDialog')
+  ui.createMenu('DeepL')
+    .addItem('Translate', 'translateTest')
+    .addSeparator()
+    .addItem('Show usage', 'makeMonitoringUsageRequest')
+    .addItem('Update API key', 'updateApiKeyDialog')
     .addToUi();
 }
 
@@ -27,4 +30,18 @@ function updateApiKeyDialog() {
     const apiKey = response.getResponseText().trim();
     PropertiesService.getScriptProperties().setProperty('DEEPL_API_KEY', apiKey);
   }
+}
+
+function translateTest() {
+  const data = makeTranslationRequest('The following extended parameters are also available.');
+  
+  if (!data.translations || !data.translations.length) {
+    throw new Error('No translation received');
+  }
+
+  function head(list) { return list[0] };
+  function tail(list) { return list.slice(1) };
+
+  const item = head(data.translations);
+  SpreadsheetApp.getUi().alert(item.text);
 }
