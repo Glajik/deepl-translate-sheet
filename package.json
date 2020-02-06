@@ -1,0 +1,11 @@
+{
+  "name": "deepl-test",
+  "version": "1.0.0",
+  "main": "onOpen.js",
+  "author": "Viacheslav Glazhevskyi <glajik@gmail.com>",
+  "license": "MIT",
+  "private": true,
+  "dependencies": {
+    "@types/google-apps-script": "^1.0.10"
+  }
+}

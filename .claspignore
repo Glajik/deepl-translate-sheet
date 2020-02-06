@@ -1,3 +1,4 @@
 .gitignore
 apikey.txt
-
+packages.json
+node_modules/**
