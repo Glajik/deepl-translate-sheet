@@ -26,3 +26,22 @@ function processResponse(response) {
 
   return data;  
 }
+
+/**
+ * Process response and convert it to column values
+ * @param {text} response 
+ */
+function processFetchAllResponse(response) {
+  const data = JSON.parse(response);
+    
+  // Get column values from translation list
+  const values = data.translations.map(
+    function (item) { return item.text }
+  )
+  
+  // Restore valid stucture for range
+  // [1, 2, 3] -> [[1], [2], [3]]
+  return values.map(
+    function (item) { return [item] }
+  );
+}

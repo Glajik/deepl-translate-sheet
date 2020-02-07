@@ -1,5 +1,5 @@
 /**
- * Create request to DeepL API. This is a common function, and not used directly.
+ * Create request object to DeepL API. This is a common function, and not used directly.
  * Limits: The request size should not exceed 30kbytes. In case of HTTP response code 429, 
  * your application should be configured to resend the request again later rather than
  * constantly resending the request.
@@ -7,7 +7,7 @@
  * @param {*} [queryString] like 'text=Translate it', without auth_key parameter.
  * @returns {Object} Request object, that can be used in UrlFetchApp.fetchAll method
  */
-function makeRequest(path, queryString) {
+function makeRequestObj(path, queryString) {
   queryString = queryString || ''; // Optional parameter, defaults is empty string
 
   const apiKey = PropertiesService.getScriptProperties().getProperty('DEEPL_API_KEY');
@@ -24,8 +24,8 @@ function makeRequest(path, queryString) {
 
   const payload = [auth, queryString].join('&');
 
-  Logger.log('Url: %s', url);
-  Logger.log('Payload: %s', payload);
+//  Logger.log('Url: %s', url);
+//  Logger.log('Payload: %s', payload);
 
   const request = {
     url: url,

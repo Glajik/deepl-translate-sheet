@@ -32,7 +32,7 @@
  * }
  * ```
  */
-function makeTranslationRequest(lines, sourceLang, targetLang) {
+function makeTranslationRequestObj(lines, sourceLang, targetLang) {
   if (!lines || !lines.length) {
     throw new Error('Parameter "lines" is required. Type should be String or Array.');
   }
@@ -55,12 +55,7 @@ function makeTranslationRequest(lines, sourceLang, targetLang) {
   const queryString = [
     'source_lang=' + sourceLang,
     'target_lang=' + targetLang,
-    'split_sentences=0', // no splitting at all, whole input is treated as one sentence
   ].concat(texts).join('&');
 
-  const request = makeRequest('/v2/translate', queryString);
-  
-  const response = UrlFetchApp.fetch(request.url, request);
-
-  return processResponse(response);
+  return makeRequestObj('/v2/translate', queryString);
 }

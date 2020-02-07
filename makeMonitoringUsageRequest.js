@@ -12,7 +12,7 @@
  * ```
  */
 function makeMonitoringUsageRequest() {
-  const request = makeRequest('/v2/usage');
+  const request = makeRequestObj('/v2/usage');
   const response = UrlFetchApp.fetch(request.url, request);
   const data = processResponse(response);
   const count = data['character_count'];
