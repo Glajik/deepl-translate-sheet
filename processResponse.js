@@ -33,7 +33,11 @@ function processResponse(response) {
  */
 function processFetchAllResponse(response) {
   const data = JSON.parse(response);
-    
+  
+  if (!data.translations || data.translations.length === 0) {
+    throw new Error('DeepL service no returns any translations. Maybe you reached your quota.');
+  }
+  
   // Get column values from translation list
   const values = data.translations.map(
     function (item) { return item.text }
