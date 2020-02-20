@@ -1,4 +1,5 @@
 /* SETTINGS */
+var contentStartRow = 5;
 var columnsToTranslate = ['H', 'I', 'J', 'Q'];
 var sourceSheetName = 'Source';
 var outputSheetName = 'Output';
@@ -17,7 +18,6 @@ function onOpen() {
     .addItem('Update API key', 'updateApiKeyDialog')
     .addToUi();
 }
-
 
 /**
  * Iterate through list, takes first 50 items, and apply function
@@ -47,6 +47,108 @@ function byChunks(fn, acc, list) {
   return byChunks(fn, acc.concat(processed), rest);
 }
 
+
+
+function getColumnsA1Notation(sheet) {
+  return function (letter) {
+    const contentLastRow = sheet.getLastRow();
+    return [letter, contentStartRow, ':', letter, contentLastRow].join('');
+  }
+}
+
+/**
+ * Get values from range on sheetA, processing and set to range on sheetB
+ * @sig sheetA, sheetB, processFn -> a1Notation -> get rangeA values, apply process, set values to rangeB
+ * @param {Sheet} sheetA 
+ * @param {Sheet} sheetB 
+ * @param {Function} processFn function that convert list of rowContents
+ * 
+ * @returns Function with a1Notation arg.
+ */
+function doing(sheetA, sheetB, processFn) {
+  return function (a1Notation) {
+    sheetB.getRange(a1Notation).setValues(
+      processFn(sheetA.getRange(a1Notation).getValues())
+    )
+  }
+}
+
+// Prepare output sheet
+function prepareOutput(sourceSheet, outputSheet) {
+  // Copy headers
+  const identity = function (values) { return values };
+  const copyByA1Notation = doing(sourceSheet, outputSheet, identity);
+  const headerStartRow = 1;
+  const headerLastRow = contentStartRow - 1
+  const headerA1Notation = [headerStartRow, headerLastRow].join(':');
+  copyByA1Notation(headerA1Notation);
+
+  // Get columns range list
+  const getA1Notation = getColumnsA1Notation(sourceSheet);
+  const a1NotationList = columnsToTranslate.map(getA1Notation);
+  const rangeList = outputSheet.getRangeList(a1NotationList);
+
+  // Remove data validations
+  rangeList.clearDataValidations(); 
+
+  // Clear all content on sheet excludes headers
+  const contentLastRow = outputSheet.getLastRow();
+  
+  if (contentLastRow > headerLastRow) {
+    const contentA1Notation = [contentStartRow, contentLastRow].join(':');
+    outputSheet.getRange(contentA1Notation).clearContent();
+  }
+}
+
+// Create new sheet by template, or reuse old output sheet
+function insertSheetByTemplate(template) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  const oldSheet = ss.getSheetByName(outputSheetName);
+  
+  if (oldSheet) {
+    prepareOutput(template, oldSheet);
+
+    // Set focus to output sheet
+    ss.setActiveSheet(oldSheet);
+    return oldSheet;
+  }
+
+  // Insert sheet after source sheet, use it as template
+  const newSheet = ss.insertSheet(
+    outputSheetName, template.getIndex(), { template: template }
+  );
+
+  prepareOutput(template, newSheet);
+
+  return newSheet;
+}
+
+// Translate values of column range and return translated
+function translateValues(values) {
+  // Prepare request objects for each 50 cells in column.
+  // One request for 50 sentences.
+  const requests = byChunks(getRequestObjForValues, [], values);
+  
+  // Fetch all requests for column
+  const responses = UrlFetchApp.fetchAll(requests);
+  
+  // Get new translated values
+  return responses.map(processFetchAllResponse).reduce(unnest, []);
+}
+
+function translateSourceSheet() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sourceSheet = ss.getSheetByName(sourceSheetName);
+  const outputSheet = insertSheetByTemplate(sourceSheet);
+  
+  // Prepare functions
+  const getA1Notation = getColumnsA1Notation(sourceSheet);
+  const translate = doing(sourceSheet, outputSheet, translateValues);
+
+  // Translate all columns
+  columnsToTranslate.map(getA1Notation).forEach(translate);
+}
 /**
  * Join values to single string, return total count
  * @param {Number} acc Total count
@@ -76,9 +178,7 @@ function getRequestObjForValues(values) {
   // Flatten nested list, [[1], [2], [3]] -> [1, 2, 3]
   const flatList = values.reduce(unnest, []);
   return makeTranslationRequestObj(flatList);
-}
-
-/**
+}/**
  * Make post request to Deepl API
  * Allows you to monitor how much you translate, as well as the limits set.
  * @see https://www.deepl.com/docs-api.html?part=other
@@ -101,7 +201,6 @@ function makeMonitoringUsageRequest() {
   const ui = SpreadsheetApp.getUi();
   ui.alert('Monitoring usage', msg, ui.ButtonSet.OK);
 }
-
 /**
  * Create request object to DeepL API. This is a common function, and not used directly.
  * Limits: The request size should not exceed 30kbytes. In case of HTTP response code 429, 
@@ -141,7 +240,6 @@ function makeRequestObj(path, queryString) {
 
   return request;
 }
-
 /**
  * Make post request to Deepl API.
  * Allows to translate texts. This synchronous call.
@@ -239,7 +337,11 @@ function processResponse(response) {
  */
 function processFetchAllResponse(response) {
   const data = JSON.parse(response);
-    
+  
+  if (!data.translations || data.translations.length === 0) {
+    throw new Error('DeepL service no returns any translations. Maybe you reached your quota.');
+  }
+  
   // Get column values from translation list
   const values = data.translations.map(
     function (item) { return item.text }
@@ -251,7 +353,6 @@ function processFetchAllResponse(response) {
     function (item) { return [item] }
   );
 }
-
 /**
  * Show prompt to update DeepL API key.
  * @see https://www.deepl.com/docs-api.html?part=accessing
@@ -269,63 +370,4 @@ function updateApiKeyDialog() {
     const apiKey = response.getResponseText().trim();
     PropertiesService.getScriptProperties().setProperty('DEEPL_API_KEY', apiKey);
   }
-}
-
-function translateSourceSheet() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  
-  // Remove old output sheet, if presented
-  const oldSheet = ss.getSheetByName(outputSheetName);
-  
-  if (oldSheet) {
-    ss.deleteSheet(oldSheet);
-  }
-  
-  // Copy form source
-  ss.getSheetByName(sourceSheetName)
-    .copyTo(ss)
-    .setName(outputSheetName);
-  
-  const sheet = ss.getSheetByName(outputSheetName);
-  
-  // Set focus to output sheet
-  ss.setActiveSheet(sheet);
-
-  // Get range by column name
-  function getRange(A) {
-    const last = sheet.getLastRow();
-    const a1Notation = [A,5,':',A,last].join('');
-    return sheet.getRange(a1Notation);
-  };
-
-  // Take column range, translate it and return values
-  function translateRange(range) {
-    // Take all values from range
-    const values = range.getValues();
-    Logger.log('values.length: %s', values.length);
-
-    // Prepare request objects for each 50 cells in column.
-    // One request for 50 sentences.
-    const requests = byChunks(getRequestObjForValues, [], values);
-    
-    // Fetch all requests for column
-    const responses = UrlFetchApp.fetchAll(requests);
-    
-    // Get new translated values
-    const newValues = responses.map(processFetchAllResponse).reduce(unnest, []);
-    
-    // Remove validation
-    const rules = newValues.map(
-      function (row) { return [null] }
-    );
-    
-    range.setDataValidations(rules);
-    
-    // Update range
-    range.setValues(newValues);
-  }
-  
-
-  // Translate all columns
-  columnsToTranslate.map(getRange).forEach(translateRange);
 }
